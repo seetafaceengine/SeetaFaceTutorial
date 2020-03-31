@@ -6,7 +6,7 @@
 ----
 ## 1. 前言
 
-该文档通过`leanote`软件编辑，可以去[博客](http://leanote.com/blog/post/5e7d6cecab64412ae60016ef)获取更好的阅读体验。
+该文档通过`leanote`软件编辑，可以去博客获取更好的阅读体验，[传送门](http://leanote.com/blog/post/5e7d6cecab64412ae60016ef)。
 
 `SeetaFace6` 是中科视拓技术开发体系最新的版本，该版本为开放版，免费供大家使用。该版本包含了人脸识别、活体检测、属性识别、质量评估模块。
 
@@ -55,7 +55,7 @@ struct SeetaImageData
 这里要说明的是`data`的存储格式，其存储的是连续存放的试用8位无符号整数表示的像素值，存储为`[height, width, channels]`顺序。彩色图像时三通道以`BGR`通道排列。
 如下图所示，就是展示了高4宽3的彩色图像内存格式。
 
-![Image Layout](leanote://file/getImage?fileId=5e7eb2acab64412ae600565c)
+![Image Layout](leanote://file/getImage?fileId=5e8175b3ab64416ec50065e8)
 
 该存储在内存中是连续存储。因此，上图中表示的图像`data`的存储空间为`4*3*3=36` `bytes`。
 
@@ -133,6 +133,8 @@ seeta::cv::ImageData = cv::imread("1.jpg");
 
 因为`seeta::cv::ImageData`继承了`SeetaImageData`，因此在需要传入`const SeetaImageData &`类型的地方，可以直接传入`seeta::cv::ImageData`对象。
 
+> 注意：在没有特殊说明的情况下，`SeetaFace`各个模块的输入图像都必须是`BGR`通道格式的彩色图像。
+
 > 参考：`CStruct.h`、`Struct.h` 和 `Struct_cv.h`。
 
 ----
@@ -145,7 +147,7 @@ seeta::cv::ImageData = cv::imread("1.jpg");
 
 这我们采用的屏幕坐标系，也就是以左上角为坐标原点，屏幕水平向右方向为横轴，屏幕垂直向下方向为纵轴。坐标以像素为单位。
 
-![Screen Coordinates](leanote://file/getImage?fileId=5e7eb2adab64412ae600565d)
+![Screen Coordinates](leanote://file/getImage?fileId=5e8175b3ab64416ec50065e5)
 
 坐标值会出现负值，并且可以为实数，分别表示超出屏幕的部分，和位于像素中间的坐标点。
 
@@ -326,7 +328,7 @@ SeetaFaceInfoArray FaceDetector::detect(const SeetaImageData &image) const;
 ### 2.1 人脸检测器
 
 人脸检测器的效果如图所示：
-![FaceDetector](leanote://file/getImage?fileId=5e804a37ab64416cca002124)
+![FaceDetector](leanote://file/getImage?fileId=5e8175b3ab64416ec50065e7)
 
 这里给出人脸检测器的主要接口：
 ```cpp
@@ -388,7 +390,7 @@ seeta::FaceDetector::PROPERTY_MAX_IMAGE_HEIGHT  可检测的图像最大高度
 ### 2.2 人脸关键点定位器
 
 关键点定位器的效果如图所示：
-![FaceLandmarker](leanote://file/getImage?fileId=5e804a37ab64416cca002123)
+![FaceLandmarker](leanote://file/getImage?fileId=5e8175b3ab64416ec50065e6)
 
 关键定定位输入的是原始图片和人脸检测结果，给出指定人脸上的关键点的依次坐标。
 
@@ -431,7 +433,7 @@ void mark(seeta::FaceLandmarker *fl, const SeetaImageData &image, const SeetaRec
 
 这是人脸识别的一个基本概念，就是将待识别的人脸经过处理变成二进制数据的特征，然后基于特征表示的人脸进行相似度计算，最终与`相似度阈值`对比，一般超过阈值就认为特征表示的人脸是同一个人。
 
-![](leanote://file/getImage?fileId=5e80d468ab64416ec500465f)
+![](leanote://file/getImage?fileId=5e8175b3ab64416ec50065e3)
 
 这里`SeetaFace`的特征都是`float`数组，特征对比方式是向量內积。
 
@@ -503,6 +505,24 @@ std::shared_ptr<float> extract_v2(
 
 函数中间临时申请的`face`和`features`的对象大小，在识别器加载后就已经固定了，所以这部分的内存对象是可以复用的。
 
+特别指出，如果只是对一个图像中最大人脸做特征提取的函数可以实现为：
+```
+std::shared_ptr<float> extract(
+        seeta::FaceDetector *fd,
+        seeta::FaceLandmarker *fl,
+        seeta::FaceRecognizer *fr,
+        const SeetaImageData &image) {
+    auto faces = fd->detect_v2(image);
+    if (faces.empty()) return nullptr;
+    std::partial_sort(faces.begin(), faces.begin() + 1, faces.end(),
+        [](SeetaFaceInfo a, SeetaFaceInfo b) {
+            return a.pos.width > b.pos.width;
+    });
+    auto points = fl->mark(image, faces[0].pos);
+    return extract(fr, image, points);
+}
+```
+
 ### 3.2 人脸特征对比
 
 在上一节我们已经介绍了特征提取和对比的方法，这里我们直接展开讲述特征相似度计算的方法。
@@ -531,9 +551,11 @@ float compare(const float *lhs, const float *rhs, int size) {
 -|-|-
 face_recognizer.csta | 1024 | 0.62 | 通用场景高精度人脸识别
 face_recognizer_mask.csta | 512 | 0.48 | 带口罩人脸识别模型
-fr_light.csta | 512 |0.55| 轻量级人脸是被模型
+face_recognizer_light.csta | 512 |0.55| 轻量级人脸是被模型
 
 这里的一般阈值是一般场景使用的推荐阈值。一般来说1比1的场景下，该阈值会对应偏低，1比N场景会对应偏高。
+
+需要注意的是，不同模型提取的特征是不具备可比较性的，哪怕特征一样。如果在正在运行的系统替换了识别模型的话，所有底库照片都不需要重新提取特征再进行比较才行。
 
 ### 3.4 关于相似度和阈值
 
@@ -553,11 +575,11 @@ fr_light.csta | 512 |0.55| 轻量级人脸是被模型
 
 一般的人脸识别应用，我们都可以这样去区分，1比1和1比N。当然也有说法是1比1就是当N=1时的1比N。这里不详细展开说明这两者的区别。实际应用还是要因地制宜，并没有统一的模板套用。这里我们给出一般说法的两种应用。
 
-![1vs1](leanote://file/getImage?fileId=5e80f0a6ab64416cca004be4)
+![1vs1](leanote://file/getImage?fileId=5e8175b3ab64416ec50065e2)
 
 一般的1比1识别，狭义上讲就是人证对比，使用度读卡器从身份证，或者其他介质上读取到一张照片，然后和现场抓拍达到照片做对比。这种一般是做认证的场景，用来判别证件、或者其他凭证方式是否是本人在进行操作。因此广义上来讲，员工刷工卡，然后刷脸认证；个人账户进行刷脸代替密码；这种知道待识别人员身份，然后进行现场认证的方式，都可以属于1比1识别的范畴。
 
-![1vsN](leanote://file/getImage?fileId=5e80f0a7ab64416cca004be5)
+![1vsN](leanote://file/getImage?fileId=5e8175b3ab64416ec50065e4)
 
 1比N识别与1比1区别在于，对于现场待识别的人脸，不知道其身份，需要在一个底库中去查询，如果在底库中给出对应识别结果，如果不在底库中，报告未识别。如果业务场景中，确定待识别的人脸一定在底库中，那么就是一个闭集测试，也可以称之为人脸检索。反之，就是开集测试。
 
@@ -593,7 +615,7 @@ fr_light.csta | 512 |0.55| 轻量级人脸是被模型
 
 > 备注：`SeetaFace6`会给出较为完整的动态人脸识别的开发实例，参见开放版的发布平台。
 > 备注：人脸识别还有一个抽象程度更高的接口`seeta::FaceDatabase`。具体使用参照`SeetaFace2`开源版本。
-> 参考：`seeta/FaceRecognizer.h`、`seeta/FaceDatabase`
+> 参考：`seeta/FaceRecognizer.h`、`seeta/FaceDatabase.h`
 
 ## 4. 活体检测
 
@@ -601,33 +623,719 @@ fr_light.csta | 512 |0.55| 轻量级人脸是被模型
 
 关于活体检测模块的重要程度和原因，这里不做过多赘述，这里直接给出`SeetaFace`的活体检测方案。
 
-活体检测分为了两个方法，全局活体检测`seeta::BoxDetector`和局部活体检测`seeta::FaceAntiSpoofing`。
+活体检测结合了两个方法，`全局活体检测`和`局部活体检测`。
+
+`全局活体检测`就是对图片整体做检测，主要是判断是否出现了活体检测潜在的攻击介质，如手机、平板、照片等等。
+
+`局部活体检测`是对具体人脸的成像细节通过算法分析，区别是一次成像和二次成像，如果是二次成像则认为是出现了攻击。
+
+### 4.1 基本使用
+
+区别于之前的模块，活体检测识别器可以加载一个`局部检测`模型或者`局部检测`模型+`全局检测`模型。
+
+这里只加载一个`局部检测`模型：
+```cpp
+#include <seeta/FaceAntiSpoofing.h>
+seeta::FaceAntiSpoofing *new_fas() {
+    seeta::ModelSetting setting;
+    setting.append("fas_first.csta");
+    return new seeta::FaceAntiSpoofing(setting);
+}
+```
+或者`局部检测`模型+`全局检测`模型，启用全局检测能力：
+```cpp
+#include <seeta/FaceAntiSpoofing.h>
+seeta::FaceAntiSpoofing *new_fas_v2() {
+    seeta::ModelSetting setting;
+    setting.append("fas_first.csta");
+    setting.append("fas_second.csta");
+    return new seeta::FaceAntiSpoofing(setting);
+}
+```
+
+调用有两种模式，一个是单帧识别，另外就是视频识别。
+其接口声明分别为：
+```cpp
+seeta::FaceAntiSpoofing::Status seeta::FaceAntiSpoofing::Predict( const SeetaImageData &image, const SeetaRect &face, const SeetaPointF *points ) const;
+seeta::FaceAntiSpoofing::Status seeta::FaceAntiSpoofing::PredictVideo( const SeetaImageData &image, const SeetaRect &face, const SeetaPointF *points ) const;
+```
+
+从接口上两者的入参和出参的形式是一样的。出参这里列一下它的声明：
+```cpp
+class FaceAntiSpoofing {
+public:
+    /*
+     * 活体识别状态
+     */
+    enum Status
+    {
+        REAL = 0,       ///< 真实人脸
+        SPOOF = 1,      ///< 攻击人脸（假人脸）
+        FUZZY = 2,      ///< 无法判断（人脸成像质量不好）
+        DETECTING = 3,  ///< 正在检测
+    };
+}
+```
+
+`单帧识别`返回值会是`REAL`、`SPOOF`或`FUZZY`。
+`视频识别`返回值会是`REAL`、`SPOOF`、`FUZZY`或`DETECTING`。
+
+两种工作模式的区别在于前者属于一帧就是可以返回识别结果，而后者要输入多个视频帧然后返回识别结果。在`视频识别`输入帧数不满足需求的时候，返回状态就是`DETECTING`。
+
+这里给出单帧识别调用的示例：
+```cpp
+void predict(seeta::FaceAntiSpoofing *fas, const SeetaImageData &image, const SeetaRect &face, const SeetaPointF *points) {
+    auto status = fas->Predict(image, face, points);
+    switch(status) {
+    case seeta::FaceAntiSpoofing::REAL:
+        std::cout << "真实人脸" << std::endl; break;
+    case seeta::FaceAntiSpoofing::SPOOF:
+        std::cout << "攻击人脸" << std::endl; break;
+    case seeta::FaceAntiSpoofing::FUZZY:
+        std::cout << "无法判断" << std::endl; break;
+    case seeta::FaceAntiSpoofing::DETECTING:
+        std::cout << "正在检测" << std::endl; break;
+    }
+}
+```
+这里需要注意`face`和`points`必须对应，也就是`points`必须是`face`表示的人脸进行关键点定位的结果。`points`是5个关键点。当然`image`也是需要识别的原图。
+
+如果是`视频识别`模式的话，只需要将`predict`中的`fas->Predict(image, face, points)`修改为`fas->PredictVideo(image, face, points)`。
+
+在`视频识别`模式中，如果该识别结果已经完成，需要开始新的视频的话，需要调用`ResetVideo`重置识别状态，然后重新输入视频：
+```cpp
+void reset_video(seeta::FaceAntiSpoofing *fas) {
+    fas->ResetVideo();
+}
+```
+
+当了解基本调用接口之后，就可以直接看出来，识别接口直接输入的就是单个人脸位置和关键点。因此，当视频或者图片中存在多张人脸的时候，需要业务决定具体识别哪一个人脸。一般有这几种选择，1. 只做单人识别，当出现两个人的时候识别中止。2. 识别最大的人脸。3. 识别在指定区域中出现的人脸。这几种选择对精度本身影响不大，主要是业务选型和使用体验的区别。
+
+### 4.2 参数设置
+
+设置视频帧数：
+```cpp
+void SetVideoFrameCount( int32_t number );
+```
+默认为10，当在`PredictVideo`模式下，输出帧数超过这个`number`之后，就可以输出识别结果。这个数量相当于多帧识别结果融合的融合的帧数。当输入的帧数超过设定帧数的时候，会采用滑动窗口的方式，返回融合的最近输入的帧融合的识别结果。一般来说，在10以内，帧数越多，结果越稳定，相对性能越好，但是得到结果的延时越高。
+
+设置识别阈值：
+```cpp
+void SetThreshold( float clarity, float reality );
+```
+默认为`(0.3, 0.8)`。活体识别时，如果清晰度(clarity)低的话，就会直接返回`FUZZY`。清晰度满足阈值，则判断真实度（`reality`），超过阈值则认为是真人，低于阈值是攻击。在视频识别模式下，会计算视频帧数内的平均值再跟帧数比较。两个阈值都符合，越高的话，越是严格。
 
 
-### 4.1 全局活体检测
+设置全局检测阈值：
+```
+void SetBoxThresh(float box_thresh);
+```
+默认为0.8，这个是攻击介质存在的分数阈值，该阈值越高，表示对攻击介质的要求越严格，一般的疑似就不会认为是攻击介质。这个一般不进行调整。
 
-### 4.2 局部活体检测
+以上参数设置都存在对应的`Getter`方法，将方法名称中的`Set`改为`Get`就可以访问对应的参数获取了。
+
+### 4.3 参数调试
+
+在应用过程中往往不可避免对阈值产生疑问，如果要调试对应的识别的阈值，这里我们给出了每一帧分数的获取函数。
+
+下面给出识别之后获取识别具体分数的方法：
+
+```cpp
+void predict_log(seeta::FaceAntiSpoofing *fas, const SeetaImageData &image, const SeetaRect &face, const SeetaPointF *points) {
+    auto status = fas->Predict(image, face, points);
+    float clarity, reality;
+    fas->GetPreFrameScore(&clarity, &reality);
+    std::cout << "clarity = " << clarity << ", reality = " << reality << std::endl;
+}
+```
+
+在`Predict`或者`PredictVideo`之后，调用`GetPreFrameScore`方法可以获取刚刚输入帧的识别分数。
+
+> 参考：`seeta/FaceAntiSpoofing.h`
 
 ### 4.3 其他建议
 
+活体识别内容增加了对图像清晰度的判断，但是还是有对其他方面的质量要求，比如人脸分辨率128x128以上，光照均匀，自然表情等。其中主要影响识别精度的为光照环境，这些都可以通过后面的`质量评估`模块做到。
+
+另外局部活体检测利用了人脸周围的上下文信息，因此要求人脸不能够靠近边缘，处于图像边缘会导致上下文信息缺失影响精度。这种场景下一般会在屏幕交互时画出`ROI`区域，在`ROI`区域内在合适的距离和人脸分辨率下进行识别。
+
 ## 5. 人脸跟踪
+
+人脸跟踪也是基于人脸的基本模块，其要解决的问题是在进行识别之前就利用视频特性，首先就确认在视频序列中出现的那些人是同一人。
+
+这里先给出人脸跟踪结果的结构体：
+```cpp
+struct SeetaTrackingFaceInfo
+{
+    SeetaRect pos;
+    float score;
+
+    int frame_no;
+    int PID;
+    int step;
+};
+
+struct SeetaTrackingFaceInfoArray
+{
+    struct SeetaTrackingFaceInfo *data;
+    int size;
+};
+```
+
+对比与`SetaFaceInfo`增加了`PID`字段。`frame_no`和`step`为内部调试保留字段，一般不使用。`pos`字段是`SeetaRect`类型，可以替代直接人脸检测器的检测结果的`pos`使用。
+
+`PID`就是人员编号，对于视频中出现的人脸，如果跟踪分配了同一个`PID`，那么就可以认为相同`PID`的人脸属于同一个人。
+
+同样，适用之前先要构造人脸跟踪器：
+```cpp
+#include <seeta/FaceTracker.h>
+seeta::FaceTracker *new_ft() {
+    seeta::ModelSetting setting;
+    setting.append("face_detector.csta");
+    return new seeta::FaceTracker(setting, 1920, 1080);
+}
+```
+这里代码构造了用于跟踪`1920x1080`分辨率视频的人脸跟踪器，这里人脸跟踪器要传入的模型就是人脸检测的模型。
+
+下面就是打印出跟踪到的人脸的PID以及坐标位置的函数：
+```cpp
+#include <seeta/FaceTracker.h>
+void track(seeta::FaceTracker *ft, const SeetaImageData &image) {
+    SeetaTrackingFaceInfoArray cfaces = ft->Track(image);
+    std::vector<SeetaTrackingFaceInfo> faces(cfaces.data, cfaces.data + cfaces.size);
+    for (auto &face : faces) {
+        SeetaRect rect = face.pos;
+        std::cout << "[" << rect.x << ", " << rect.y << ", "
+                  << rect.width << ", " << rect.height << "]: "
+                  << face.score << ", PID=" << face.PID << std::endl;
+    }
+}
+```
+
+当检测逻辑断开，或者切换视频的时候，就需要排除之前跟踪的逻辑，这个时候调用`Reset`方式清楚之前所有跟踪的结果，重新`PID`计数：
+```cpp
+void reset(seeta::FaceTracker *ft) {
+    ft->Reset();
+}
+```
+
+人脸跟踪器和人脸检测器一样，可以设置检测器的基本参数：
+```cpp
+ft->SetMinFaceSize(80);     // 设置最小人脸80
+ft->SetThreshold(0.9f);     // 设置检测器的分数阈值
+```
+
+当然还有人脸跟踪器专有的参数设置。
+
+设置视频稳定性：
+```cpp
+void seeta::FaceTracker::SetVideoStable(bool stable = true);
+```
+当这个参数设为真的话，就会进行检测结果的帧间平滑，使得检测结果从视觉上更好一些。
+
+设置检测间隔：
+```cpp
+void seeta::FaceTracker::SetInterval(int interval); 
+```
+间隔默认值为10。这里跟踪间隔是为了发现新增`PID`的间隔。检测器会通过整张图像检测人脸去发现是否有新增的`PID`，所以这个值太小会导致跟踪速度变慢（不断做全局检测）；这个值太大会导致画面中新增加的人脸不会立马被跟踪到。
+
+`SetInterval`的默认值是根据FPS为25设定的。在应用中往往会产生跳帧，如果跳帧为1的话，相当于FPS变成了12.5。这个时候就可以将跟踪间隔设置为5。
+
+人脸跟踪不等同与人群计数算法。从目标上来说是为了保证同一个PID为同一个人为第一要务，这样可以减小识别分析的压力。另外，人脸跟踪是基于出现的人脸，如果没有漏出人脸也做计数的话，结果差距会很大。当然，统计PID个数来统计摄像头前出现人脸的`人次`还是可以的。
+
+> 参考：`seeta/FaceTracker.h`
 
 ## 6. 质量评估
 
+`SeetaFace6`开放的质量评估模块包含了多个子模块，包括`亮度评估`、`清晰度评估`、`完整度评估`、`清晰度评估（深度）`、`姿态评估`、`姿态评估（深度）`、`分辨率评估`。
+
+首先说明各个评估模块的共有接口。
+```cpp
+namespace seeta {
+    enum QualityLevel {
+        LOW = 0,
+        MEDIUM = 1,
+        HIGH = 2,
+    };
+
+    class QualityResult {
+    public:
+        QualityLevel level = LOW;   ///< quality level
+        float score = 0;            ///< greater means better, no range limit
+    };
+
+    class QualityRule {
+    public:
+        using self = QualityRule;
+
+        virtual ~QualityRule() = default;
+
+        /**
+         *
+         * @param image original image
+         * @param face face location
+         * @param points landmark on face
+         * @param N how many landmark on face given, normally 5
+         * @return Quality result
+         */
+        virtual QualityResult check(
+                const SeetaImageData &image,
+                const SeetaRect &face,
+                const SeetaPointF *points,
+                int32_t N) = 0;
+    };
+}
+```
+
+每一个子模块继承了`QualityRule`基类，提供抽象的评估结果。子类需要实现`check`方法，其传入原始图像`image`，人脸位置`face`以及`N`个关键点的数组`points`。这里注意`N`一般情况下都是`5`。
+
+质量评估模块返回值为`QualityResult`，其两个成员`level`和`score`。`level`是直接`LOW`、`MEDIUM`、`HIGH`分别表示质量差、良、优。而对应`score`与质量评价正相关，但是不保证取值范围，越大质量越好。`level`作为直接质量判断依据，当需要细分区分两个人脸质量时，则使用`score`判断。
+
+所以，所有评估其调用全部使用`check`函数进行，以下子模块介绍的时候只重点说明评估器的构造特性。
+
+由于涉及的模块比较多，具体的接口定义参见开放版本下载地址中的详细接口文档。
+
+### 6.1 亮度评估
+
+亮度评估就是评估人脸区域内的亮度值是否均匀正常，存在部分或全部的过亮和过暗都会是评价为`LOW`。
+
+**评估器声明**，见文件 `seeta/QualityOfBrightness.h`
+```cpp
+class QualityOfBrightness : public QualityRule;
+```
+
+**评估器构造**
+```cpp
+QualityOfBrightness();
+QualityOfBrightness(float v0, float v1, float v2, float v3);
+```
+其中`{v0, v1, v2, v3}`的默认值为`{70, 100, 210, 230}`。评估器会将综合的亮度从灰度值映射到`level`，其映射关系为：
+```
+[0, v0), [v3, ~) => LOW
+[v0, v1), [v2, v3) => MEDIUM
+[v1, v2) => HIGH
+```
+
+### 6.2 清晰度评估
+
+清晰度这里是传统方式通过二次模糊后图像信息损失程度统计的清晰度。
+
+**评估器声明**，见文件 `seeta/QualityOfClarity.h`
+```cpp
+class QualityOfClarity : public QualityRule;
+```
+
+**评估器构造**
+```cpp
+QualityOfClarity();
+QualityOfClarity(float low, float height);
+```
+`{low, high}`默认值为`{0.1, 0.2}` ,其映射关系为
+```
+[0, low) => LOW
+[low, high) => MEDIUM
+[high, ~) => HIGH
+```
+
+### 6.3 完整度评估
+
+完整度评估是朴素的判断人来是否因为未完全进入摄像头而造成的不完整的情况。该方法不适用于判断遮挡造成的不完整。
+
+判断方式为对人脸检测框周围做扩展，如果扩展超过了图像边缘，则认为该图像是处于边缘不完整的人脸。
+
+**评估器声明**，见文件 `seeta/QualityOfIntegrity.h`
+```cpp
+class QualityOfIntegrity : public QualityRule;
+```
+
+**评估器构造**
+```cpp
+QualityOfIntegrity();
+QualityOfIntegrity(float low, float height);
+```
+`{low, high}`默认值为`{10, 1.5}`单位分别为像素和比例，其映射关系为:  
+    - 人脸外扩`high`倍数没有超出图像 => `HIGH`   
+    - 人脸外扩`low`像素没有超出图像 => `MEDIUM`  
+    - 其他 => LOW
+返回的`score`在`level`为`MEDIUM`有意义，表示未超出图像的比例。
+
+### 6.4 姿态评估
+
+这里的姿态评估器是传统方式，通过人脸5点坐标值来判断姿态是否为正面。
+
+**评估器声明**，见文件 `seeta/QualityOfPose.h`
+```cpp
+class QualityOfPose : public QualityRule;
+```
+
+**评估器构造**
+```cpp
+QualityOfPose();
+```
+这里的构造器并不需要任何参数。
+
+### 6.5 姿态评估（深度）
+
+这里的姿态评估器是深度学习方式，通过回归人头部在`yaw`、`pitch`、`roll`三个方向的偏转角度来评估人脸是否是正面。
+
+**评估器声明**，见文件 `seeta/QualityOfPoseEx.h`
+```cpp
+class QualityOfPoseEx : public QualityRule;
+```
+
+**评估器构造**
+```cpp
+QualityOfPoseEx(const SeetaModelSetting &setting);
+```
+这里构造`QualityOfPoseEx`需要传入模型`pose_estimation.csta`。前面章节已经列举大量如何传入模型的示例，这里不再进行赘述。
+
+**参数设置**
+由于该模块参数较多，构造函数并未进行参数设置，而通用参数设置方法为：
+```cpp
+void set(PROPERTY property, float value);
+```
+可以设置的属性包括：
+```
+YAW_LOW_THRESHOLD       yaw 方向低分数阈值
+YAW_HIGH_THRESHOLD      yaw 方向高分数阈值
+PITCH_LOW_THRESHOLD     pitch 方向低分数阈值
+PITCH_HIGH_THRESHOLD    pitch 方向高分数阈值
+ROLL_LOW_THRESHOLD      roll 方向低分数阈值
+ROLL_HIGH_THRESHOLD     roll 方向高分数阈值
+```
+
+以下是构造评估器对象，并设置成默认阈值的操作：
+```
+auto qa = new seeta::QualityOfPoseEx(seeta::ModelSetting("pose_estimation.csta"));
+
+qa->set(seeta::QualityOfPoseEx::YAW_LOW_THRESHOLD, 25);
+qa->set(seeta::QualityOfPoseEx::YAW_HIGH_THRESHOLD, 10);
+qa->set(seeta::QualityOfPoseEx::PITCH_LOW_THRESHOLD, 20);
+qa->set(seeta::QualityOfPoseEx::PITCH_HIGH_THRESHOLD, 10);
+qa->set(seeta::QualityOfPoseEx::ROLL_LOW_THRESHOLD, 33.33f);
+qa->set(seeta::QualityOfPoseEx::ROLL_HIGH_THRESHOLD, 16.67f);
+
+delete qa;
+```
+
+根据对应的阈值，当三个角度都满足最高分数阈值时评估结果`HIGH`，当有一个角度为最低时，评价为`LOW`，其他情况会评价为`MEDIUM`。
+
+### 6.6 分辨率评估
+
+这个是质量评估模块里相对最简单的部分了，就是判断人脸部分的分辨率。
+
+**评估器声明**，见文件 `seeta/QualityOfResolution.h`
+```cpp
+class QualityOfResolution : public QualityRule;
+```
+
+**评估器构造**
+```cpp
+QualityOfResolution();
+QualityOfResolution(float low, float height);
+```
+`{low, high}`默认值为`{80, 120}` ,其映射关系为
+```
+[0, low) => LOW
+[low, high) => MEDIUM
+[high, ~) => HIGH
+```
+
+### 6.7 清晰度评估（深度）
+
+质量评估（深度）模块因为历史原因，并未继承`QualityRule`，这里直接给出在使用时继承`QualityRule`的版本。
+
+```cpp
+#include "seeta/QualityStructure.h"
+#include "seeta/QualityOfLBN.h"
+
+namespace seeta {
+    class QualityOfClarityEx : public QualityRule {
+    public:
+        QualityOfClarityEx() {
+            m_lbn = std::make_shared<QualityOfLBN>(ModelSetting("quality_lbn.csta"));
+        }
+        QualityOfClarityEx(float blur_thresh) {
+            m_lbn = std::make_shared<QualityOfLBN>(ModelSetting("quality_lbn.csta"));
+            m_lbn->set(QualityOfLBN::PROPERTY_BLUR_THRESH, blur_thresh);
+        }
+        
+        QualityResult check(const SeetaImageData &image, const SeetaRect &face, const SeetaPointF *points, int32_t N) override {
+            assert(N == 5);
+            QualityResult result;
+            int light, blur, noise;
+            m_lbn->Detect(image, points, &light, &blur, &noise);
+            if (blur == QualityOfLBN::BLUR) {
+                return {QualityLevel::LOW, 0};
+            } else {
+                return {QualityLevel::HIGH, 1};
+            }
+        }
+
+    private:
+        std::shared_ptr<QualityOfLBN> m_lbn;
+    };
+}
+```
+注意该代码并非以开放代码库接口，使用时需要拷贝置项目使用。
+
+这里的`QualityOfLBN`开始使用了模型`quality_lbn.csta`。其构造的时候设置`blur_thresh`，默认为`0.8`。其评估对应分值超过选项之后就认为是模糊图片。
+
+### 6.8 遮挡评估
+
+这次要注意的是，遮挡判断的算法也是策略上的使用。以下的代码可以以`QualityRule`的方式完成遮挡判断。判断的遮挡物为五个关键点，分别是左右眼中心、鼻尖和左右嘴角。
+
+```cpp
+#include "seeta/QualityStructure.h"
+#include "seeta/FaceLandmarker.h"
+
+namespace seeta {
+    class QualityOfNoMask : public QualityRule {
+    public:
+        QualityOfNoMask() {
+            m_marker = std::make_shared<seeta::FaceLandmarker>(ModelSetting("face_landmarker_mask_pts5.csta"));
+        }
+        
+        QualityResult check(const SeetaImageData &image, const SeetaRect &face, const SeetaPointF *points, int32_t N) override {
+            auto mask_points = m_marker->mark_v2(image, face);
+            int mask_count = 0;
+            for (auto point : mask_points) {
+                if (point.mask) mask_count++;
+            }
+            QualityResult result;
+            if (mask_count > 0) {
+                return {QualityLevel::LOW, 1 - float(mask_count) / mask_points.size()};
+            } else {
+                return {QualityLevel::HIGH, 1};
+            }
+        }
+
+    private:
+        std::shared_ptr<seeta::FaceLandmarker> m_marker;
+    };
+}
+```
+
+这里虽然使用了`seeta::FaceLandmarker`模块，但是需要使用`face_landmarker_mask_pts5.csta`模型。其提供了对每个检测到的关键点的遮挡信息判断。
+
+### 6.9 评估器使用
+
+到这里，我们就完全介绍了质量评估可以使用的模块，由于每个模块都按照`QualityRule`的方式封装，除了每个模块构造和初始化的时候存在差异，对每一项的评估现在都可以以相同的方式操作了。
+
+这里先给出如何使用`QualityRule`进行质量评估并打印结果：
+```cpp
+void plot_quality(seeta::QualityRule *qr,
+                  const SeetaImageData &image,
+                  const SeetaRect &face,
+                  const std::vector<SeetaPointF> &points) {
+    const char *level_string[] = {"LOW", "MEDIUM", "HIGH"};
+    seeta::QualityResult result = qr->check(image, face, points.data(), int(points.size()));
+    std::cout << "Level=" << level_string[int(result.level)] << ", score=" << result.score << std::endl;
+}
+```
+
+这里以`QualityOfResolution`为例，在获取到人脸和关键点后，评估分辨率的调用代码如下：
+```cpp
+seeta::QualityRule *qr = new seeta::QualityOfResolution();
+plot_quality(qr, image, face, points);
+delete qr;
+```
+
+如果需要评估其他的质量，只需要修改`QualityOfResolution`部分即可。
+
+当然这个代码块不代表应用的形式。因为`qr`对象可以被持久化，不需要使用的时候临时构造和释放。
+
+在应用中，往往需要建立多个`QualityRule`，根据实际规则，往往需要多个`QualityRule`全部返回`HIGH`才认为图像合格。
+
+当然也可以根据业务需求，加入其它的质量评估模块。
+
+以上质量评估模块的默认阈值，都是经过调整的，一般不需要调整即可使用。默认阈值已经能够很好的配合我们的`SeetaFace`其它模块运行了。
+
+> 注意：该模块的所有子模块都包含在`SeetaQualityAssessor300`库中。
+
+> 参考：`seeta/QualityOfBrightness.h`, `seeta/QualityOfIntegrity.h`,  `seeta/QualityOfPose.h`,  `seeta/QualityOfResolution.h`,  `seeta/QualityOfClarity.h`,  `seeta/QualityOfLBN.h`,  `seeta/QualityOfPoseEx.h`, 
+
 ## 7. 人脸属性检测
+
+`SeetaFace`目前开放的属性有`年龄识别`和`性别识别`。
+
+### 7.1 年龄识别
+
+同样，先看一下构造识别器的函数：
+```cpp
+#include <seeta/AgePredictor.h>
+seeta::AgePredictor *new_ap() {
+    seeta::ModelSetting setting;
+    setting.append("age_predictor.csta");
+    return new seeta::AgePredictor(setting);
+}
+```
+
+调用识别器进行识别并打印识别结果的函数如下：
+```cpp
+#include <seeta/AgePredictor.h>
+void plot_age(seeta::AgePredictor *ap,
+        const SeetaImageData &image,
+        const std::vector<SeetaPointF> &points) {
+    assert(points.size() == 5);
+    int age = 0;
+    ap->PredictAgeWithCrop(image, points.data(), age);
+    std::cout << "age=" << age << std::endl;
+}
+```
+
+一般`age`在不同的年龄段都会有不同的误差，在使用中一般要讲数字的年龄，映射到用于需要的年龄段，如青中老年。
+
+在视频中做逐帧识别的时候往往会观测到每一帧的年龄都会有波动，因为深度学习算法特性，当输入轻微扰动，可能对结果产生明显波动。
+
+如果单帧识别不会出现这种观测现象。视频分析中，一般前置人脸跟踪，所以识别结果对于一个人只会给出一个。
+
+当然朴素的对人脸识别的优化结论都对属性识别也有用，主要是：1. 使用质量评估对低质量差的图片进行过滤；2. 进行多次识别进行结果集成。
+
+### 7.2 性别识别
+
+同样，先看一下构造识别器的函数：
+```cpp
+#include <seeta/GenderPredictor.h>
+seeta::GenderPredictor *new_gp() {
+    seeta::ModelSetting setting;
+    setting.append("gender_predictor.csta");
+    return new seeta::GenderPredictor(setting);
+}
+```
+
+调用识别器进行识别并打印识别结果的函数如下：
+```cpp
+#include <seeta/GenderPredictor.h>
+void plot_gender(seeta::GenderPredictor *gp,
+        const SeetaImageData &image,
+        const std::vector<SeetaPointF> &points) {
+    assert(points.size() == 5);
+    seeta::GenderPredictor::GENDER gender = 0;
+    gp->PredictGenderWithCrop(image, points.data(), gender);
+    std::cout << "gender="
+        << (gender == seeta::GenderPredictor::FEMALE ? "female" : "male")
+        << std::endl;
+}
+```
+
+当然可以推论，性别识别也是可以使用质量评估去保证识别图像的质量，从而提高识别精度。
 
 ## 8. 戴口罩人脸识别
 
+### 8.1 口罩检测
+
+同样，先看一下构造识别器的函数：
+```cpp
+#include <seeta/MaskDetector.h>
+seeta::MaskDetector *new_md() {
+    seeta::ModelSetting setting;
+    setting.append("mask_detector.csta");
+    return new seeta::MaskDetector(setting);
+}
+```
+
+调用识别器进行识别并打印识别结果的函数如下：
+```cpp
+#include <seeta/MaskDetector.h>
+void plot_mask(seeta::MaskDetector *md,
+        const SeetaImageData &image,
+        const SeetaRect &face) {
+    float score = 0;
+    bool mask = md->detect(image, face, &score);
+    std::cout << std::boolalpha << "mask=" << mask
+        << ", score=" << score
+        << std::endl;
+}
+```
+一般性的，`score`超过0.5，则认为是检测带上了口罩。
+
+### 8.2 口罩人脸识别
+
+口罩人脸识别，其底层还是调用口罩人脸识别模块，需要替换的是口罩人脸识别模型，如下是构造用于口罩人脸识别的识别器：
+```cpp
+#include <seeta/FaceRecognizer.h>
+seeta::FaceRecognizer *new_mask_fr() {
+    seeta::ModelSetting setting;
+    setting.append("face_recognizer_mask.csta");
+    return new seeta::FaceRecognizer(setting);
+}
+```
+
+需要注意，口罩人脸识别和普通人脸识别试用`CropFaceV2`方法裁剪出来的人脸是不同的。
+
+一般带口罩人脸识别系统可以这样工作：
+![MaskFaceRecgenition](leanote://file/getImage?fileId=5e82adfe63430a0fc5000000)
+
+可以看到带口罩人脸识别其实就是利用了未遮挡部分的信息做识别的。
+这样就可以有基本的推论：
+在通用未带口罩场景下，戴口罩的人脸识别精度是比不上通用人脸识别精度的模型的。
+在戴口罩场景下，戴口罩的人脸识别模型表现会更好。
+
+当然系统要求不高的时候，不需要两个模型同时使用，戴口罩的人脸识别模型在不带口罩的人脸上也是可以利用不会被口罩遮挡的面部信息提取特征的。在系统中比较大量的是带口罩的人脸的话，可以只使用戴口罩人脸识别模型。
+
+这里要再次强调，不同识别模型提取的特征是不具备可比较性的，特征只有在相同模型提取的前提下才能进行比较。
+
 ## 9. 多指令集支持
+
+到这里，主要模块和功能使用全部讲完了，本节我们讨论一个部署相关的情况。
+
+我们核心的计算库为`libtennis.so`（Windows下为`tennis.dll`）。
+
+其需要`AVX`和`FMA`指令集支持，为了在不支持指令集的CPU上运行。我们设计了动态运行库的策略。
+
+在打包中我们还包含了`tennis_haswell`，`tennis_sandy_bridge`、`tennis_pentium`。
+其分别对应了不同的架构，而这些架构支持指令集为：
+
+库名称              | AVX | SSE | FMA
+-|-|-|-
+tennis_haswell      | ON  |  ON |  ON
+tennis_sandy_bridge | ON  |  ON | OFF
+tennis_pentium      | OFF |  ON | OFF
+
+在部署的时候，这些库要全部放到`tennis`库所在的目录。
+
+当然，如果了解运行平台的指令集支持的话，可以只使用一个动态库，例如已知支持`AVX`和`FMA`指令支持，就可以将`tennis_haswell`重命名为`tennis`，部署时只安装这个库即可。
 
 ## 10. 其他语言
 
+SeetaFace6 只维护了核心的 C++ 的接口，开发者在需要其他语言支持的时候，需要通过语言内置的方式进行扩展。
+
+这里给出不同语言的的扩展参考文件：
+《[Python 扩展C/C++](https://docs.python.org/zh-cn/3.8/extending/extending.html)》
+《[Java 之JNI基础篇](https://blog.csdn.net/yingshukun/article/details/79053061?depth_1-utm_source=distribute.pc_relevant.none-task&utm_source=distribute.pc_relevant.none-task)》
+《[Oracle Java Documentation](https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/intro.html#programming_to_the_jni)》
+《[C# 使用C++进行.NET编程](https://docs.microsoft.com/zh-cn/cpp/dotnet/dotnet-programming-with-cpp-cli-visual-cpp?view=vs-2019)》
+《[C# 从托管代码调用本机函数](https://docs.microsoft.com/zh-cn/cpp/dotnet/calling-native-functions-from-managed-code?view=vs-2019)》
+
 ## a. FAQ
 
-1. 版本号不统一？
-2. 什么时候开源？
-3. 近红外图像处理？
-4. 为什么SeetaFace3不包含81点模型了？
+1. **版本号不统一？**
+关于版本号的额外说明，该开放版本立项的时候，就是作为社区版v3发布，而执行过程中调整至发布版本为商用版本v6。这个版本不统一是因为商用版迭代的版本管理和社区版不统一造成的。现在统一版本为v6。但是项目过程中还是存在`SeetaFace3`的表述，大家不同担心，v6和v3其实就是一个版本
+
+2. **这个版本什么时候开源？**
+之前开源放出是基于新的商业版本的更新，这次直接放出了商业版本，所以近期内不会进行开源。当商业版本的`SeetaFace7`商用发布后，会考虑进行v6开源。
+
+3. **算法是否可以处理近灰度图像？**
+对于灰度图像，`SeetaFace`的工具链，除了活体检测模块的其他模块都可以对应运行。对应精度会受到影响变低。
+需要注意将灰度图像输入每个模块时，需要通过图像库转成`BGR`通道格式输入算法。
+
+4. **算法是否可以处理近红外图片？**
+`SeetaFace6`开放版都是基于可见光彩色图像做处理的。不支持近红外图像。
+这里需要说明的是`近红外图像`不等价于`灰度图像`虽然前者往往只有黑白色。从成像来说，灰度图像成像的波段还是可见光，近红外图像已经是不可见光成像了。这两者有本质的不同。
+灰度图像可以做兼容处理。近红外图像不直接支持。
+
+5. **需要什么配置运行？**
+从运行加速上来说，虽然有了多指令集支持，我们还是建议使用拥有加速指令集的`CPU`运行。
+`X86`架构支持`AVX`和`FMA`指令集，支持`OpenMP`。`ARM`架构`v8`以上，支持`NEON`, `OpenMP`。
+有了以上的支持都会有基本的体验，当然体验和价格基本上是成正比的。
+没有单纯硬件的最低配置，各种配置都会对应有其解决方案。
+
+6. **是否可以训练？**
+训练代码会开放，但是要基于视拓的海龙框架。这个事情牵扯到现有的商业合作，还在筹划当中。
+
+7. **SeetaFace6开放版可以免费用于商用么？**
+可以。
 
 ## b. 附录
 
@@ -735,3 +1443,4 @@ private:
     }
 };
 ```
+s
