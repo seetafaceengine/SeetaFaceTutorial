@@ -1,4 +1,4 @@
-# SeetaFace 入门教程
+# SeetaFace6 入门教程
 -----
 ## 0. 目录
 [TOC]
@@ -52,7 +52,7 @@ struct SeetaImageData
 };
 ```
 
-这里要说明的是`data`的存储格式，其存储的是连续存放的试用8位无符号整数表示的像素值，存储为`[height, width, channels]`顺序。彩色图像时三通道以`BGR`通道排列。
+这里要说明的是`data`的存储格式，其存储的是连续存放的使用8位无符号整数表示的像素值，存储为`[height, width, channels]`顺序。彩色图像时三通道以`BGR`通道排列。
 如下图所示，就是展示了高4宽3的彩色图像内存格式。
 
 ![Image Layout](leanote://file/getImage?fileId=5e8175b3ab64416ec50065e8)
@@ -99,7 +99,7 @@ if (!cvimage.isContinuous()) cvimage = cvimage.clone();
 cv::Mat another_cvimage = cv::Mat(simage.height, simage.width, CV_8UC(simage.channels), simage.data);
 ```
 
-`seeta::ImageData`和`seeta::cv::ImageData`也是基于这种基本的类型定义进行的封装，并加进了对象声明周期的管理。
+`seeta::ImageData`和`seeta::cv::ImageData`也是基于这种基本的类型定义进行的封装，并加进了对象生命周期的管理。
 
 这里展示了一种封装：
 
@@ -551,11 +551,11 @@ float compare(const float *lhs, const float *rhs, int size) {
 -|-|-
 face_recognizer.csta | 1024 | 0.62 | 通用场景高精度人脸识别
 face_recognizer_mask.csta | 512 | 0.48 | 带口罩人脸识别模型
-face_recognizer_light.csta | 512 |0.55| 轻量级人脸是被模型
+face_recognizer_light.csta | 512 |0.55| 轻量级人脸识别模型
 
 这里的一般阈值是一般场景使用的推荐阈值。一般来说1比1的场景下，该阈值会对应偏低，1比N场景会对应偏高。
 
-需要注意的是，不同模型提取的特征是不具备可比较性的，哪怕特征一样。如果在正在运行的系统替换了识别模型的话，所有底库照片都不需要重新提取特征再进行比较才行。
+需要注意的是，不同模型提取的特征是不具备可比较性的，哪怕特征一样。如果在正在运行的系统替换了识别模型的话，所有底库照片全部需要重新提取特征再进行比较才行。
 
 ### 3.4 关于相似度和阈值
 
@@ -569,7 +569,7 @@ face_recognizer_light.csta | 512 |0.55| 轻量级人脸是被模型
 
 而比较两个识别算法精度的时候，一般通常的算法就是画出`ROC`，也就是得出不同阈值下的性能做统一比较。这种情况下，及时使用了相似度变换手段，只要是正相关的映射，那么得到的`ROC`曲线也会完全一致。
 
-这里对一种错误的测试方式给出说明。经常有人提出问题，A算法比B算法效果差，原因是拿两张照片，是同一个人，A算法给出的相似度比B算法给出的低。诚然，“效果”涉及到的因素很多，比如识别为同一个人就应给给出极高的相似度。但是经过上述讨论，希望读者能够自然的明白这种精度测试方式的片面性。
+这里对一种错误的测试方式给出说明。经常有人提出问题，A算法比B算法效果差，原因是拿两张照片，是同一个人，A算法给出的相似度比B算法给出的低。诚然，“效果”涉及到的因素很多，比如识别为同一个人就应该给出极高的相似度。但是经过上述讨论，希望读者能够自然的明白这种精度测试方式的片面性。
 
 ### 3.5 1比1和1比N
 
@@ -577,7 +577,7 @@ face_recognizer_light.csta | 512 |0.55| 轻量级人脸是被模型
 
 ![1vs1](leanote://file/getImage?fileId=5e8175b3ab64416ec50065e2)
 
-一般的1比1识别，狭义上讲就是人证对比，使用度读卡器从身份证，或者其他介质上读取到一张照片，然后和现场抓拍达到照片做对比。这种一般是做认证的场景，用来判别证件、或者其他凭证方式是否是本人在进行操作。因此广义上来讲，员工刷工卡，然后刷脸认证；个人账户进行刷脸代替密码；这种知道待识别人员身份，然后进行现场认证的方式，都可以属于1比1识别的范畴。
+一般的1比1识别，狭义上讲就是人证对比，使用读卡器从身份证，或者其他介质上读取到一张照片，然后和现场抓拍到的照片做对比。这种一般是做认证的场景，用来判别证件、或者其他凭证方式是否是本人在进行操作。因此广义上来讲，员工刷工卡，然后刷脸认证；个人账户进行刷脸代替密码；这种知道待识别人员身份，然后进行现场认证的方式，都可以属于1比1识别的范畴。
 
 ![1vsN](leanote://file/getImage?fileId=5e8175b3ab64416ec50065e4)
 
@@ -1054,17 +1054,19 @@ namespace seeta {
     public:
         QualityOfClarityEx() {
             m_lbn = std::make_shared<QualityOfLBN>(ModelSetting("quality_lbn.csta"));
+            m_marker = std::make_shared<FaceLandmarker>(ModelSetting("face_landmarker_pts68.csta"));
         }
         QualityOfClarityEx(float blur_thresh) {
             m_lbn = std::make_shared<QualityOfLBN>(ModelSetting("quality_lbn.csta"));
+            m_marker = std::make_shared<FaceLandmarker>(ModelSetting("face_landmarker_pts68.csta"));
             m_lbn->set(QualityOfLBN::PROPERTY_BLUR_THRESH, blur_thresh);
         }
         
         QualityResult check(const SeetaImageData &image, const SeetaRect &face, const SeetaPointF *points, int32_t N) override {
-            assert(N == 5);
-            QualityResult result;
+            // assert(N == 68);
+            auto points68 = m_marker->mark(image, face);
             int light, blur, noise;
-            m_lbn->Detect(image, points, &light, &blur, &noise);
+            m_lbn->Detect(image, points68.data(), &light, &blur, &noise);
             if (blur == QualityOfLBN::BLUR) {
                 return {QualityLevel::LOW, 0};
             } else {
@@ -1073,13 +1075,16 @@ namespace seeta {
         }
 
     private:
-        std::shared_ptr<QualityOfLBN> m_lbn;
+    std::shared_ptr<QualityOfLBN> m_lbn;
+    std::shared_ptr<FaceLandmarker> m_marker;
     };
 }
 ```
 注意该代码并非以开放代码库接口，使用时需要拷贝置项目使用。
 
 这里的`QualityOfLBN`开始使用了模型`quality_lbn.csta`。其构造的时候设置`blur_thresh`，默认为`0.8`。其评估对应分值超过选项之后就认为是模糊图片。
+
+另外，该模型预测需要`68`点定位，区别与其他的都是`5`点定位，这需要大家注意。为了保持外部接口一致性，这里在单独使用的时候重新进行了`68`点定位。
 
 ### 6.8 遮挡评估
 
@@ -1276,7 +1281,40 @@ seeta::FaceRecognizer *new_mask_fr() {
 
 这里要再次强调，不同识别模型提取的特征是不具备可比较性的，特征只有在相同模型提取的前提下才能进行比较。
 
-## 9. 多指令集支持
+## 9. 眼睛状态检测
+
+眼睛状态检测可以分辨检测到双眼的睁闭，或者因为遮挡或者成像原因无法判断的情况。
+
+这里预设的眼睛状态为`seeta::EyeStateDetector::EYE_STATE`枚举类型，有四个值`EYE_CLOSE`, `EYE_OPEN`, `EYE_RANDOM`, `EYE_UNKNOWN`，分别表示，眼睛闭合，眼睛张开，不是眼睛区域，状态无法判断。
+
+这里也是先构造眼睛状态检测器：
+```cpp
+#include <seeta/EyeStateDetector.h>
+seeta::EyeStateDetector *new_esd() {
+    seeta::ModelSetting setting;
+    setting.append("eye_state.csta");
+    return new seeta::EyeStateDetector(setting);
+}
+```
+
+现在给出检测并打印眼睛状态的函数：
+```cpp
+#include <seeta/EyeStateDetector.h>
+void eye_state(seeta::EyeStateDetector *esd,
+        const SeetaImageData &img,
+        const std::vector<SeetaPointF> &points) {
+    seeta::EyeStateDetector::EYE_STATE left_eye, right_eye;
+    const char *EYE_STATE_STR[] = {"close", "open", "random", "unknown"};
+    esd->Detect(img, points.data(), left_eye, right_eye);
+    
+    std::cout << "Eyes: (" << EYE_STATE_STR[left_eye] << ", "
+        << EYE_STATE_STR[right_eye] << ")" << std::endl;
+}
+```
+
+这里检测眼睛状态是`Detect`函数，输入原始图像和对应的`5`点坐标，即可同时检测左右眼的状态。注意这里的左右是相对图片内容而言的左右。
+
+## 10. 多指令集支持
 
 到这里，主要模块和功能使用全部讲完了，本节我们讨论一个部署相关的情况。
 
@@ -1297,7 +1335,7 @@ tennis_pentium      | OFF |  ON | OFF
 
 当然，如果了解运行平台的指令集支持的话，可以只使用一个动态库，例如已知支持`AVX`和`FMA`指令支持，就可以将`tennis_haswell`重命名为`tennis`，部署时只安装这个库即可。
 
-## 10. 其他语言
+## 11. 其他语言
 
 SeetaFace6 只维护了核心的 C++ 的接口，开发者在需要其他语言支持的时候，需要通过语言内置的方式进行扩展。
 
@@ -1307,6 +1345,8 @@ SeetaFace6 只维护了核心的 C++ 的接口，开发者在需要其他语言�
 《[Oracle Java Documentation](https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/intro.html#programming_to_the_jni)》
 《[C# 使用C++进行.NET编程](https://docs.microsoft.com/zh-cn/cpp/dotnet/dotnet-programming-with-cpp-cli-visual-cpp?view=vs-2019)》
 《[C# 从托管代码调用本机函数](https://docs.microsoft.com/zh-cn/cpp/dotnet/calling-native-functions-from-managed-code?view=vs-2019)》
+
+特别指出，`Android`调用使用`java`开发，在对应的`SDK`打包中包含了`JNI`封装的代码，可以直接使用。其他平台的`JNI`封装也可以参考其实现。
 
 ## a. FAQ
 
