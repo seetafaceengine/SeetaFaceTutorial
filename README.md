@@ -6,7 +6,7 @@
 ----
 ## 1. 前言
 
-该文档通过`leanote`软件编辑，可以去博客获取更好的阅读体验，[传送门](http://leanote.com/blog/post/5e7d6cecab64412ae60016ef)。
+该文档通过`leanote`软件编辑，~~可以去博客获取更好的阅读体验~~。
 
 `SeetaFace6` 是中科视拓技术开发体系最新的版本，该版本为开放版，免费供大家使用。该版本包含了人脸识别、活体检测、属性识别、质量评估模块。
 
@@ -55,7 +55,7 @@ struct SeetaImageData
 这里要说明的是`data`的存储格式，其存储的是连续存放的使用8位无符号整数表示的像素值，存储为`[height, width, channels]`顺序。彩色图像时三通道以`BGR`通道排列。
 如下图所示，就是展示了高4宽3的彩色图像内存格式。
 
-![Image Layout](leanote://file/getImage?fileId=5e8175b3ab64416ec50065e8)
+![Image Layout](assets/image_layout.png)
 
 该存储在内存中是连续存储。因此，上图中表示的图像`data`的存储空间为`4*3*3=36` `bytes`。
 
@@ -147,7 +147,7 @@ seeta::cv::ImageData = cv::imread("1.jpg");
 
 这我们采用的屏幕坐标系，也就是以左上角为坐标原点，屏幕水平向右方向为横轴，屏幕垂直向下方向为纵轴。坐标以像素为单位。
 
-![Screen Coordinates](leanote://file/getImage?fileId=5e8175b3ab64416ec50065e5)
+![Screen Coordinates](assets/screen_coordinates.png)
 
 坐标值会出现负值，并且可以为实数，分别表示超出屏幕的部分，和位于像素中间的坐标点。
 
@@ -248,7 +248,7 @@ class seeta::ModelSetting : SeetaModelSetting;
 
 ```cpp
 seeta::ModelSetting setting;
-setting.append("fr_model.csta");
+setting.append("fr_model.csta");
 ```
 
 有了通用模型的设置方式，一般实现时的表述就会是`加载一个人脸识别模型`，模型加载的方式都是构造`SeetaModelSetting`，传入对应的算法对象。
@@ -327,8 +327,8 @@ SeetaFaceInfoArray FaceDetector::detect(const SeetaImageData &image) const;
 
 ### 2.1 人脸检测器
 
-人脸检测器的效果如图所示：
-![FaceDetector](leanote://file/getImage?fileId=5e8175b3ab64416ec50065e7)
+人脸检测器的效果如图所示：  
+![FaceDetector](assets/face_detector.png)
 
 这里给出人脸检测器的主要接口：
 ```cpp
@@ -389,8 +389,8 @@ seeta::FaceDetector::PROPERTY_MAX_IMAGE_HEIGHT  可检测的图像最大高度
 
 ### 2.2 人脸关键点定位器
 
-关键点定位器的效果如图所示：
-![FaceLandmarker](leanote://file/getImage?fileId=5e8175b3ab64416ec50065e6)
+关键点定位器的效果如图所示：  
+![FaceLandmarker](assets/face_landmarker.png)
 
 关键定定位输入的是原始图片和人脸检测结果，给出指定人脸上的关键点的依次坐标。
 
@@ -433,7 +433,7 @@ void mark(seeta::FaceLandmarker *fl, const SeetaImageData &image, const SeetaRec
 
 这是人脸识别的一个基本概念，就是将待识别的人脸经过处理变成二进制数据的特征，然后基于特征表示的人脸进行相似度计算，最终与`相似度阈值`对比，一般超过阈值就认为特征表示的人脸是同一个人。
 
-![](leanote://file/getImage?fileId=5e8175b3ab64416ec50065e3)
+![Face features](assets/face_features.png)
 
 这里`SeetaFace`的特征都是`float`数组，特征对比方式是向量內积。
 
@@ -575,11 +575,11 @@ face_recognizer_light.csta | 512 |0.55| 轻量级人脸识别模型
 
 一般的人脸识别应用，我们都可以这样去区分，1比1和1比N。当然也有说法是1比1就是当N=1时的1比N。这里不详细展开说明这两者的区别。实际应用还是要因地制宜，并没有统一的模板套用。这里我们给出一般说法的两种应用。
 
-![1vs1](leanote://file/getImage?fileId=5e8175b3ab64416ec50065e2)
+![1vs1](assets/1vs1.png)
 
 一般的1比1识别，狭义上讲就是人证对比，使用读卡器从身份证，或者其他介质上读取到一张照片，然后和现场抓拍到的照片做对比。这种一般是做认证的场景，用来判别证件、或者其他凭证方式是否是本人在进行操作。因此广义上来讲，员工刷工卡，然后刷脸认证；个人账户进行刷脸代替密码；这种知道待识别人员身份，然后进行现场认证的方式，都可以属于1比1识别的范畴。
 
-![1vsN](leanote://file/getImage?fileId=5e8175b3ab64416ec50065e4)
+![1vsN](assets/1vsn.png)
 
 1比N识别与1比1区别在于，对于现场待识别的人脸，不知道其身份，需要在一个底库中去查询，如果在底库中给出对应识别结果，如果不在底库中，报告未识别。如果业务场景中，确定待识别的人脸一定在底库中，那么就是一个闭集测试，也可以称之为人脸检索。反之，就是开集测试。
 
@@ -1269,8 +1269,8 @@ seeta::FaceRecognizer *new_mask_fr() {
 
 需要注意，口罩人脸识别和普通人脸识别试用`CropFaceV2`方法裁剪出来的人脸是不同的。
 
-一般带口罩人脸识别系统可以这样工作：
-![MaskFaceRecgenition](leanote://file/getImage?fileId=5e82adfe63430a0fc5000000)
+一般带口罩人脸识别系统可以这样工作：  
+![MaskFaceRecognition](assets/mask_face_recognition.png)
 
 可以看到带口罩人脸识别其实就是利用了未遮挡部分的信息做识别的。
 这样就可以有基本的推论：
